@@ -45,7 +45,8 @@ class Salience:
 
             self.functions = Functions()
             self.config_data = self.functions.agent_utils.config.data
-            self.persona = self.config_data['settings']['configuration']['Persona']
+            self.persona = self.config_data['settings']['system']['Persona']
+            self.objective = self.config_data['personas'][self.persona].get('Objective', None)
 
             self.storage = StorageInterface().storage_utils
             self.init_storage()
@@ -70,48 +71,11 @@ class Salience:
         self.set_objective()
 
     def init_storage(self):
+
         tasks = self.config_data['personas'][self.persona]['Tasks']
         storage = {'Tasks': tasks}
 
         [self.prefill_storage(key, value) for key, value in storage.items()]
-
-    def prefill_storage(self, collection_name, data):
-        try:
-            ids = id_generator(data)
-
-            metadata = [metadata_builder(i, item) for i, item in enumerate(data)]
-
-            description = [meta['Description'] for meta in metadata]
-
-            save_params = {
-                "collection_name": collection_name,
-                "ids": ids,
-                "data": description,
-                "metadata": metadata,
-            }
-
-            self.storage.save_memory(save_params)
-        except Exception as e:
-            self.logger.log(f"Error in prefill_storage: {e}", 'error')
-
-    def prepare_objective(self):
-        while True:
-            user_input = input("\nDefine Objective (leave empty to use defaults): ")
-            if user_input.lower() == '':
-                return None
-            else:
-                self.config_data['personas'][self.persona]['Objective'] = user_input
-                return user_input
-
-    def run(self):
-        try:
-            self.log_start()
-            self.load_data_from_storage()
-            self.summarize_task()
-            self.check_for_actions()
-            self.log_results()
-        except Exception as e:
-            self.logger.log(f"Run error: {e}", 'error')
 
     def loop(self):
         try:
@@ -127,18 +91,57 @@ class Salience:
         except Exception as e:
             self.logger.log(f"Loop error: {e}", 'error')
 
+    def run(self):
+        try:
+            self.log_start()
+            self.load_data_from_storage()
+            self.summarize_task()
+            self.check_for_actions()
+            self.log_results()
+        except Exception as e:
+            self.logger.log(f"Error running Salience: {e}", 'error')
+
     def check_for_actions(self):
         self.select_action()
 
         if self.selected_action:
             self.execute_action()
-        else:
             self.execute_task()
+        else:
+            pass
+
+    def determine_current_task(self):
+        self.data['current_task'] = self.task_handling.get_current_task()
+        if self.data['current_task'] is None:
+            self.logger.log("Task list has been completed!!!", 'info')
+            quit()
+
+    def determine_status(self):
+        task = self.task_handling.get_current_task()
+        self.task['status_result'] = self.status_agent.run(task=task, **self.task['execution_results'])
+        self.display_status_result()
+
+    def display_execution_results(self):
+        task_result = self.task['execution_results']['task_result']
+        self.logger.log_result(task_result, 'Execution Results')
+
+    def display_status_result(self):
+        status = self.task['status_result']['status']
+        reason = self.task['status_result']['reason']
+        result = f"Status: {status}\n\nReason: {reason}"
+        self.logger.log_result(result, 'Status Result')
+
+    def display_task_list(self):
+        self.task_handling.show_task_list('Salience')
 
     def execute_action(self):
         try:
             task = self.task_handling.get_current_task()['document']
-            action_results = self.action_execution.run(task=task, action=self.selected_action, context=self.reason)
+
+            action_results = self.action_execution.run(objective=self.objective,
+                                                       task=task,
+                                                       action=self.selected_action,
+                                                       context=self.reason)
             formatted_results = self.format_action_results(action_results)
 
             self.task['execution_results'] = {
@@ -150,6 +153,34 @@ class Salience:
         except Exception as e:
             self.logger.log(f"Execute action error: {e}", 'error')
 
+    def execute_task(self):
+        try:
+            task = self.task_handling.get_current_task()['document']
+            task_result = self.exec_agent.run(task=task,
+                                              summary=self.data['summary'],
+                                              context=self.context,
+                                              feedback=self.feedback)
+
+            self.task['execution_results'] = {
+                "task_result": task_result,
+                "current_task": self.data['current_task'],
+                "context": self.context,
+                "Order": self.data['Order']
+            }
+
+            self.display_execution_results()
+        except Exception as e:
+            self.logger.log(f"Task execution error: {e}", 'error')
+
+    def fetch_context(self):
+        self.context = self.get_feedback_from_status_results(self.task.get('status_result'))
+
+    def fetch_feedback(self):
+        self.feedback = self.functions.user_interface.get_user_input()
+
+    def fetch_ordered_task_list(self):
+        self.data['ordered_list'] = self.task_handling.get_ordered_task_list()
+
     @staticmethod
     def format_action_results(action_results):
         formatted_strings = []
@@ -158,6 +189,17 @@ class Salience:
             formatted_strings.append(formatted_string)
 
         return "\n".join(formatted_strings).strip('---\n')
+
+    def frustrate(self):
+        if self.frustration < self.max_frustration:
+            self.frustration += self.frustration_step
+            self.frustration = min(self.frustration, self.max_frustration)
+            self.action_selection.set_threshold(self.frustration)
+            self.logger.log(f"\nIncreased Frustration Level!", 'info')
+        else:
+            self.logger.log(f"\nMax Frustration Level Reached: {self.frustration}", 'info')
+
+    # noinspection PyTypeChecker
 
     @staticmethod
     def get_feedback_from_status_results(status):
@@ -170,72 +212,6 @@ class Salience:
                 result = None
 
             return result
-
-    def select_action(self):
-        self.selected_action = None
-
-        task = self.task_handling.get_current_task()['document']
-        self.selected_action = self.action_selection.run(task=task, feedback=self.feedback)
-
-        if self.selected_action:
-            result = f"{self.selected_action['Name']}: {self.selected_action['Description']}"
-            self.logger.log_result(result, 'Action Selected')
-
-    def determine_current_task(self):
-        self.data['current_task'] = self.task_handling.get_current_task()
-        if self.data['current_task'] is None:
-            self.logger.log("Task list has been completed!!!", 'info')
-            quit()
-
-    def determine_status(self):
-        self.task['status_result'] = self.status_agent.run(**self.task['execution_results'])
-        self.display_status_result()
-
-    def display_status_result(self):
-        status = self.task['status_result']['status']
-        reason = self.task['status_result']['reason']
-        result = f"Status: {status}\n\nReason: {reason}"
-        self.logger.log_result(result, 'Status Result')
-
-    def display_execution_results(self):
-        task_result = self.task['execution_results']['task_result']
-        self.logger.log_result(task_result, 'Execution Results')
-
-    def display_task_list(self):
-        self.task_handling.show_task_list('Salience')
-
-    def execute_task(self):
-        task_result = self.exec_agent.run(summary=self.data['summary'],
-                                          context=self.context,
-                                          feedback=self.feedback)
-
-        self.task['execution_results'] = {
-            "task_result": task_result,
-            "current_task": self.data['current_task'],
-            "context": self.context,
-            "Order": self.data['Order']
-        }
-
-        self.display_execution_results()
-
-    def fetch_ordered_task_list(self):
-        self.data['ordered_list'] = self.task_handling.get_ordered_task_list()
-
-    def fetch_context(self):
-        self.context = self.get_feedback_from_status_results(self.task.get('status_result'))
-
-    def fetch_feedback(self):
-        self.feedback = self.functions.user_interface.get_user_input()
-
-    # noinspection PyTypeChecker
-    def frustrate(self):
-        if self.frustration < self.max_frustration:
-            self.frustration += self.frustration_step
-            self.frustration = min(self.frustration, self.max_frustration)
-            self.action_selection.set_threshold(self.frustration)
-            print("\nIncreased Frustration Level!")
-        else:
-            print(f"\nMax Frustration Level Reached: {self.frustration}")
 
     def handle_frustration(self):
         self.reason = None
@@ -269,9 +245,45 @@ class Salience:
     def log_start(self):
         self.logger.log(f"Running Agent ...", 'debug')
 
+    def prefill_storage(self, collection_name, data):
+        try:
+            ids = id_generator(data)
+            metadata = [metadata_builder(i, item) for i, item in enumerate(data)]
+            description = [meta['Description'] for meta in metadata]
+
+            save_params = {
+                "collection_name": collection_name,
+                "ids": ids,
+                "data": description,
+                "metadata": metadata,
+            }
+
+            self.storage.save_memory(save_params)
+        except Exception as e:
+            self.logger.log(f"Error in prefill_storage: {e}", 'error')
+
+    def prepare_objective(self):
+        while True:
+            user_input = input("\nDefine Objective (leave empty to use defaults): ")
+            if user_input.lower() == '':
+                return None
+            else:
+                self.config_data['personas'][self.persona]['Objective'] = user_input
+                return user_input
+
     def prepare_ordered_results(self):
         self.data['task_ids'] = self.data['ordered_list']['ids']
         self.data['Order'] = self.data['current_task']["metadata"]["Order"]
+
+    def select_action(self):
+        self.selected_action = None
+
+        task = self.task_handling.get_current_task()['document']
+        self.selected_action = self.action_selection.run(task=task, feedback=self.feedback)
+
+        if self.selected_action:
+            result = f"{self.selected_action['Name']}: {self.selected_action['Description']}"
+            self.logger.log_result(result, 'Action Selected')
 
     def set_objective(self):
         objective = self.prepare_objective()

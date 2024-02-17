@@ -1,13 +1,12 @@
 @echo off
-
 REM Activate virtual environment
-call venv\Scripts\activate
+call venv\Scripts\activate.bat
 
-REM Upgrade library
-pip install --upgrade mylibrary
+REM Upgrade the library within the virtual environment
+pip install --upgrade --extra-index-url https://test.pypi.org/simple/ your-library-package
 
 REM Run tests
-python -m unittest discover tests
+python -m unittest discover -s tests
 
-REM Deactivate virtual environment 
+REM Deactivate the virtual environment
 call venv\Scripts\deactivate.bat

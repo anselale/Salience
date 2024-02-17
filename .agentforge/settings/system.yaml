@@ -1,0 +1,15 @@
+Persona: default
+OnTheFly: true
+SaveMemory: true
+
+Logging:
+  Enabled: true
+  Folder: ./Logs
+  Files:
+    AgentForge: debug
+    ModelIO: debug
+    Results: warning
+
+Paths:
+  Files: ./Files
+  Workspace: ./Workspace

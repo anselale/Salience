@@ -1,20 +1,11 @@
 from agentforge.agent import Agent
-from Utilities.TaskHandling import TaskHandling
 
 
 class StatusAgent(Agent):
-    _task_handling = TaskHandling()
-
-    def load_additional_data(self):
-        try:
-            self.data['objective'] = self.agent_data['persona'].get('Objective', None)
-            self.data['task'] = self._task_handling.get_current_task()['document']
-        except Exception as e:
-            self.logger.log(f"Error building output: {e}", 'error')
 
     def log_task_results(self, task, text_to_append):
         try:
-            filename = "./Logs/results.txt"
+            filename = "./Results/task_results.txt"
             separator = "\n\n\n\n---\n\n\n\n"
             task_to_append = "\nTask: " + task['description'] + "\n\n"
             with open(filename, "a") as file:

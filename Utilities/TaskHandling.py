@@ -12,7 +12,6 @@ class TaskHandling:
     def __init__(self):
         self.logger = Logger(name=self.__class__.__name__)
         self.storage = StorageInterface()
-        # self.config = Configs()
 
     def get_current_task(self):
         try:
@@ -62,10 +61,10 @@ class TaskHandling:
 
     def log_tasks(self, tasks):
         try:
-            filename = "./Logs/results.txt"
+            filename = "./Results/task_results.txt"
 
-            if not os.path.exists("./Logs"):
-                os.makedirs("./Logs")
+            if not os.path.exists("./Results"):
+                os.makedirs("./Results")
 
             with open(filename, "a") as file:
                 file.write(tasks)
@@ -74,7 +73,7 @@ class TaskHandling:
 
     def show_task_list(self, desc):
         try:
-            selected_persona = self.storage.config.data['settings']['configuration']['Persona']
+            selected_persona = self.storage.config.data['settings']['system']['Persona']
             objective = self.storage.config.data['personas'][selected_persona]['Objective']
             self.storage.storage_utils.select_collection("Tasks")
 
