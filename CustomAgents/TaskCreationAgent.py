@@ -3,8 +3,16 @@ import uuid
 
 
 class TaskCreationAgent(Agent):
-
     def parse_result(self):
+        """
+        Parses the agent's result, extracting tasks from YAML content, and orders them.
+
+        This method processes the YAML-formatted result to retrieve a list of tasks, assigning an order to each task.
+        If no tasks are found or the result is invalid, it logs an error and sets the result to an empty list.
+
+        Raises:
+            Exception: If parsing fails or no 'tasks' key is found, it logs an error and defaults the result to [].
+        """
         try:
             parsed_yaml = self.functions.agent_utils.parse_yaml_string(self.result)
 
@@ -24,12 +32,29 @@ class TaskCreationAgent(Agent):
             self.result = []
 
     def save_result(self):
+        """
+        Overrides the save_result method to delegate task saving logic to the save_tasks method.
+
+        Catches and logs any exceptions raised during the task saving process.
+        """
         try:
             self.save_tasks(self.result)
         except Exception as e:
             self.logger.log(f"Error saving result: {e}", 'error')
 
     def save_tasks(self, task_list):
+        """
+        Saves a list of tasks to storage, assigning unique identifiers and default metadata to each.
+
+        Parameters: task_list (list of dict): A list of tasks, where each task is a dictionary containing its order
+        and description.
+
+        Each task is saved with a unique List_ID and default status of "not completed". The entire Tasks collection
+        is replaced with the new set of tasks.
+
+        Raises:
+            Exception: If there's an error during task saving, it logs the error.
+        """
         try:
             collection_name = "Tasks"
             self.storage.delete_collection(collection_name)
@@ -47,6 +72,10 @@ class TaskCreationAgent(Agent):
             self.logger.log(f"Error saving tasks: {e}", 'error')
 
     def build_output(self):
+        """
+        Intentionally left blank to indicate no additional output processing is required for this agent.
+
+        This method is overridden without implementation, as the TaskCreationAgent's primary function is to parse
+        and save tasks, not to generate a specific output format.
+        """
         pass
-
-

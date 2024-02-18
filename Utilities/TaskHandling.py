@@ -8,12 +8,29 @@ init(autoreset=True)
 
 
 class TaskHandling:
+    """
+    A class responsible for handling task-related operations, including retrieving the current task,
+    organizing tasks by order, logging tasks, and displaying the task list to the user.
+
+    Attributes:
+        logger (Logger): Logger instance for logging messages and errors.
+        storage (StorageInterface): StorageInterface instance for accessing storage operations.
+    """
 
     def __init__(self):
+        """
+        Initializes the TaskHandling class, setting up logger and storage interface instances.
+        """
         self.logger = Logger(name=self.__class__.__name__)
         self.storage = StorageInterface()
 
     def get_current_task(self):
+        """
+        Retrieves the current task from the storage, prioritizing tasks that have not been completed yet.
+
+        Returns: dict or None: The current task as a dictionary if available, or None if an error occurs or no tasks
+        are pending.
+        """
         try:
             ordered_list = self.get_ordered_task_list()
 
@@ -32,6 +49,13 @@ class TaskHandling:
             return None
 
     def get_ordered_task_list(self):
+        """
+        Fetches and orders tasks by their specified order from the storage.
+
+        Returns:
+            dict: A dictionary containing ordered lists of task IDs, embeddings, documents, and metadata.
+                  Returns an empty structure if an error occurs.
+        """
         try:
             # Load Tasks
             self.storage.storage_utils.select_collection("Tasks")
@@ -60,6 +84,15 @@ class TaskHandling:
             return {'ids': [], 'embeddings': [], 'documents': [], 'metadatas': []}
 
     def log_tasks(self, tasks):
+        """
+        Logs the given tasks to a designated file.
+
+        Parameters:
+            tasks (str): The tasks information to log.
+
+        Raises:
+            Exception: If an error occurs during the file operation.
+        """
         try:
             filename = "./Results/task_results.txt"
 
@@ -72,6 +105,18 @@ class TaskHandling:
             self.logger.log(f"Error in logging tasks: {e}", 'error')
 
     def show_task_list(self, desc):
+        """
+        Displays a list of tasks to the user, along with the objective and status of each task.
+
+        Parameters:
+            desc (str): A description to display along with the task list.
+
+        Returns:
+            str: A string representation of the task list and objective.
+
+        Raises:
+            Exception: If an error occurs while fetching or displaying the task list.
+        """
         try:
             selected_persona = self.storage.config.data['settings']['system']['Persona']
             objective = self.storage.config.data['personas'][selected_persona]['Objective']
